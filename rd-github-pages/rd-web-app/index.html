@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>R&D Resource Allocation Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --navy:#0B1628; --navy-2:#112040; --navy-3:#1A3055;
+    --accent:#3B82F6; --accent-2:#60A5FA;
+    --green:#10B981; --red:#EF4444; --yellow:#F59E0B;
+    --text-primary:#F0F4FF; --text-secondary:#8BA3C0; --text-muted:#4A6080;
+    --border:rgba(255,255,255,0.07); --card:rgba(255,255,255,0.04);
+    --radius:10px; --radius-lg:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',sans-serif;background:var(--navy);color:var(--text-primary);min-height:100vh;font-size:14px;}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(59,130,246,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+
+  /* ── LOGIN ── */
+  #login-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9000;background:var(--navy);}
+  #login-screen::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(59,130,246,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;}
+  .login-card{position:relative;z-index:1;background:var(--navy-2);border:1px solid var(--border);border-radius:20px;padding:40px 44px;width:420px;max-width:95vw;box-shadow:0 24px 64px rgba(0,0,0,0.5);}
+  .login-logo{width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,#3B82F6,#1D4ED8);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;font-family:'DM Mono',monospace;margin:0 auto 20px;}
+  .login-card h1{font-size:20px;font-weight:600;text-align:center;letter-spacing:-0.02em;margin-bottom:4px;}
+  .login-card .sub{font-size:13px;color:var(--text-muted);text-align:center;margin-bottom:28px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:5px;}
+  .field input,.field select{width:100%;background:var(--navy);border:1px solid var(--border);color:var(--text-primary);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;border-radius:8px;outline:none;transition:border-color 0.15s;}
+  .field input:focus,.field select:focus{border-color:var(--accent);}
+  .field input::placeholder{color:var(--text-muted);}
+  .btn{width:100%;padding:11px;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:opacity 0.15s;}
+  .btn-primary{background:var(--accent);color:#fff;}
+  .btn-primary:hover{opacity:0.88;}
+  .btn-green{background:var(--green);color:#fff;}
+  .btn-green:hover{opacity:0.88;}
+  .alert{border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:12px;display:none;}
+  .alert-error{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;}
+  .alert-success{background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);color:#6EE7B7;}
+  .login-step{display:none;}
+  .login-step.active{display:block;}
+  .spinner{display:none;width:20px;height:20px;border:2px solid rgba(255,255,255,0.2);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 14px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* ── DASHBOARD ── */
+  #app{display:none;position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:20px 24px 40px;}
+  .auth-bar{display:flex;align-items:center;justify-content:space-between;padding:8px 0 14px;border-bottom:1px solid rgba(255,255,255,0.05);margin-bottom:10px;font-size:12px;color:var(--text-muted);font-family:'DM Mono',monospace;}
+  .auth-bar-right{display:flex;gap:8px;align-items:center;}
+  header{display:flex;align-items:center;justify-content:space-between;padding:20px 0 16px;border-bottom:1px solid var(--border);margin-bottom:24px;flex-wrap:wrap;gap:12px;}
+  .header-left{display:flex;align-items:center;gap:14px;}
+  .header-logo{width:42px;height:42px;border-radius:11px;background:linear-gradient(135deg,#3B82F6,#1D4ED8);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#fff;font-family:'DM Mono',monospace;}
+  .header-title h1{font-size:18px;font-weight:600;letter-spacing:-0.02em;}
+  .header-title p{font-size:12px;color:var(--text-muted);margin-top:2px;}
+  .header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .header-badge{font-size:12px;padding:4px 12px;border-radius:20px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text-secondary);}
+
+  /* Tabs */
+  .tabs{display:flex;gap:4px;margin-bottom:24px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:4px;width:fit-content;}
+  .tab{padding:7px 18px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;color:var(--text-muted);transition:all 0.15s;border:none;background:none;font-family:'DM Sans',sans-serif;}
+  .tab.active{background:var(--navy-3);color:var(--text-primary);box-shadow:0 1px 4px rgba(0,0,0,0.3);}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  /* Cards/Filters */
+  .filters{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center;}
+  .filter-input{background:var(--card);border:1px solid var(--border);color:var(--text-primary);font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 12px;border-radius:8px;outline:none;min-width:180px;}
+  .filter-input:focus{border-color:var(--accent);}
+  .filter-input::placeholder{color:var(--text-muted);}
+
+  /* Stats */
+  .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:24px;}
+  .stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px;}
+  .stat-value{font-size:28px;font-weight:600;letter-spacing:-0.03em;margin-bottom:4px;}
+  .stat-label{font-size:12px;color:var(--text-muted);}
+
+  /* Table */
+  .table-wrap{overflow-x:auto;border-radius:var(--radius-lg);border:1px solid var(--border);}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{background:var(--navy-2);padding:10px 14px;text-align:left;font-size:11px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;}
+  td{padding:11px 14px;border-top:1px solid var(--border);vertical-align:middle;}
+  tr:hover td{background:rgba(255,255,255,0.02);}
+  .priority-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:20px;font-weight:500;font-family:'DM Mono',monospace;}
+  .p1{background:rgba(239,68,68,0.12);color:#FCA5A5;border:1px solid rgba(239,68,68,0.2);}
+  .p2{background:rgba(245,158,11,0.12);color:#FCD34D;border:1px solid rgba(245,158,11,0.2);}
+  .p3{background:rgba(59,130,246,0.10);color:#93C5FD;border:1px solid rgba(59,130,246,0.15);}
+  .stage-badge{display:inline-block;font-size:11px;padding:3px 9px;border-radius:20px;font-weight:500;}
+  .s-rfq{background:rgba(59,130,246,0.12);color:#93C5FD;}
+  .s-final{background:rgba(139,92,246,0.12);color:#C4B5FD;}
+  .s-neg{background:rgba(16,185,129,0.1);color:#6EE7B7;}
+  .s-award{background:rgba(245,158,11,0.12);color:#FCD34D;}
+  .s-review{background:rgba(236,72,153,0.1);color:#F9A8D4;}
+  .s-takeover-qa{background:rgba(20,184,166,0.12);color:#5EEAD4;}
+  .s-takeover-rfq{background:rgba(99,102,241,0.12);color:#A5B4FC;}
+  .s-takeover-loi{background:rgba(249,115,22,0.12);color:#FDBA74;}
+  .s-other{background:rgba(255,255,255,0.06);color:var(--text-secondary);}
+  .status-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:5px;}
+  .status-active{background:#10B981;}
+  .status-closed{background:#4A6080;}
+  .btn-sm{padding:4px 10px;font-size:12px;border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;border:1px solid var(--border);background:var(--card);color:var(--text-secondary);transition:all 0.15s;}
+  .btn-sm:hover{border-color:var(--accent);color:var(--accent);}
+  .btn-sm.danger:hover{border-color:var(--red);color:#FCA5A5;}
+
+  /* Modal */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:3000;align-items:center;justify-content:center;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--navy-2);border:1px solid rgba(59,130,246,0.2);border-radius:18px;padding:28px 32px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;}
+  .modal h2{font-size:16px;font-weight:600;margin-bottom:20px;}
+  .modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .modal-grid .full{grid-column:1/-1;}
+  .modal-actions{display:flex;gap:10px;margin-top:20px;justify-content:flex-end;}
+  .modal-actions button{padding:8px 18px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;}
+  .btn-cancel{background:var(--card);border:1px solid var(--border);color:var(--text-secondary);}
+  .btn-save{background:var(--accent);border:none;color:#fff;}
+  .btn-delete{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;}
+
+  /* Toast */
+  #toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--navy-3);border:1px solid var(--border);border-radius:10px;padding:10px 20px;font-size:13px;color:var(--text-primary);opacity:0;transition:all 0.3s;z-index:9999;white-space:nowrap;pointer-events:none;}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  /* User manager */
+  .um-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);margin-bottom:6px;}
+
+  /* Matrix */
+  .matrix-grid{display:grid;gap:16px;}
+  .matrix-member{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px;}
+  .matrix-member-name{font-size:14px;font-weight:500;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+  .matrix-projects{display:flex;flex-wrap:wrap;gap:6px;}
+  .matrix-tag{font-size:11px;padding:3px 9px;border-radius:20px;background:var(--navy-3);border:1px solid var(--border);color:var(--text-secondary);}
+
+  /* Workload */
+  .workload-bar-wrap{margin-bottom:12px;}
+  .workload-label{display:flex;justify-content:space-between;font-size:12px;color:var(--text-secondary);margin-bottom:4px;}
+  .workload-bar{height:6px;border-radius:3px;background:var(--border);overflow:hidden;}
+  .workload-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#3B82F6,#10B981);transition:width 0.6s;}
+
+  select option{background:#1A3055;}
+  .loading{text-align:center;padding:40px;color:var(--text-muted);font-size:13px;}
+
+  /* Sync indicator */
+  .sync-dot{width:7px;height:7px;border-radius:50%;background:#10B981;display:inline-block;margin-right:5px;animation:pulse-green 2s ease-in-out infinite;}
+  @keyframes pulse-green{0%,100%{opacity:1}50%{opacity:0.4}}
+</style>
+</head>
+<body>
+
+<!-- ══ LOGIN SCREEN ══════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">R&D</div>
+
+    <!-- Setup step (first run) -->
+    <div class="login-step" id="step-setup">
+      <h1>Welcome</h1>
+      <p class="sub">First launch — create your owner account</p>
+      <div class="alert alert-error" id="setup-err"></div>
+      <div class="field"><label>Your Name</label><input type="text" id="setup-name" placeholder="e.g. John Smith"></div>
+      <div class="field"><label>Your Email</label><input type="email" id="setup-email" placeholder="you@company.com"></div>
+      <button class="btn btn-green" onclick="doSetup()">Create Owner Account</button>
+    </div>
+
+    <!-- Login step -->
+    <div class="login-step" id="step-login">
+      <h1>Sign In</h1>
+      <p class="sub">R&D Resource Allocation Dashboard</p>
+      <div class="alert alert-error" id="login-err"></div>
+      <div class="spinner" id="login-spinner"></div>
+      <div class="field"><label>Email Address</label>
+        <input type="email" id="login-email" placeholder="you@company.com" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <button class="btn btn-primary" onclick="doLogin()">Continue →</button>
+      <p style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:14px;">Access is invite-only. Contact your dashboard owner to request access.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ APP ═══════════════════════════════════════════════════════ -->
+<div id="app">
+  <!-- Auth bar -->
+  <div class="auth-bar">
+    <span id="auth-greeting"></span>
+    <div class="auth-bar-right">
+      <span><span class="sync-dot"></span>Live sync</span>
+      <button id="btn-manage-users" onclick="openUserManager()" style="display:none;padding:4px 12px;font-size:12px;background:rgba(59,130,246,0.1);color:#93C5FD;border:1px solid rgba(59,130,246,0.25);border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;">👥 Manage Users</button>
+      <button onclick="doLogout()" style="padding:4px 12px;font-size:12px;background:var(--card);color:var(--text-muted);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;">Sign Out</button>
+    </div>
+  </div>
+
+  <header>
+    <div class="header-left">
+      <div class="header-logo">R&D</div>
+      <div class="header-title">
+        <h1>Resource Allocation Dashboard</h1>
+        <p>R&D Team · Technical Project Management</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="header-badge" id="header-proj-count">— Projects</div>
+      <div class="header-badge" style="color:#6EE7B7;border-color:rgba(16,185,129,0.3);background:rgba(16,185,129,0.07);">🌐 Live</div>
+      <div class="header-badge" id="role-badge"></div>
+      <div class="header-badge" id="current-date"></div>
+    </div>
+  </header>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('projects',this)">📋 Projects</button>
+    <button class="tab" onclick="switchTab('workload',this)">👥 Workload</button>
+    <button class="tab" onclick="switchTab('matrix',this)">🔢 Matrix</button>
+    <button class="tab owner-only" onclick="switchTab('manage',this)" style="display:none;">⚙️ Manage</button>
+  </div>
+
+  <!-- Projects Tab -->
+  <div class="tab-panel active" id="tab-projects">
+    <div class="stats-grid" id="stats-grid"></div>
+    <div class="filters">
+      <input class="filter-input" id="f-search" placeholder="🔍 Search projects…" oninput="applyFilters()">
+      <select class="filter-input" id="f-priority" onchange="applyFilters()">
+        <option value="">All Priorities</option>
+        <option value="1">P1 — Critical</option>
+        <option value="2">P2 — High</option>
+        <option value="3">P3 — Standard</option>
+      </select>
+      <select class="filter-input" id="f-stage" onchange="applyFilters()">
+        <option value="">All Stages</option>
+        <option value="RFQ">RFQ Submission</option>
+        <option value="Finaliz">Finalizing</option>
+        <option value="Negotiations">Contract Negotiations</option>
+        <option value="Award">Awaiting Award</option>
+        <option value="Review">Review</option>
+        <option value="Q&A">Q&A</option>
+        <option value="Handover">Handover to PM</option>
+        <option value="Takeover Q&A">Takeover Q&A</option>
+        <option value="Takeover RFQ">Takeover RFQ</option>
+        <option value="Takeover LOI">Takeover LOI</option>
+      </select>
+      <select class="filter-input" id="f-status" onchange="applyFilters()">
+        <option value="active">Active Only</option>
+        <option value="">All Statuses</option>
+        <option value="Won">Won</option>
+        <option value="Lost">Lost</option>
+        <option value="Submitted">Submitted</option>
+        <option value="Postponed">Postponed</option>
+        <option value="Cancelled">Cancelled</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th><th>Project</th><th>Priority</th><th>Stage</th>
+          <th>Lead</th><th>Support</th><th>Status</th>
+        </tr></thead>
+        <tbody id="proj-tbody"><tr><td colspan="7" class="loading">Loading projects…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Workload Tab -->
+  <div class="tab-panel" id="tab-workload">
+    <div id="workload-content" class="loading">Loading…</div>
+  </div>
+
+  <!-- Matrix Tab -->
+  <div class="tab-panel" id="tab-matrix">
+    <div id="matrix-content" class="loading">Loading…</div>
+  </div>
+
+  <!-- Manage Tab (owners only) -->
+  <div class="tab-panel" id="tab-manage">
+    <div style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;align-items:center;">
+      <input class="filter-input" id="m-search" placeholder="🔍 Search…" oninput="renderManage()">
+      <select class="filter-input" id="m-priority" onchange="renderManage()">
+        <option value="">All Priorities</option>
+        <option value="1">P1</option><option value="2">P2</option><option value="3">P3</option>
+      </select>
+      <button onclick="openAddModal()" style="padding:8px 16px;background:rgba(16,185,129,0.15);color:#6EE7B7;border:1px solid rgba(16,185,129,0.3);border-radius:7px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;">+ Add Project</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Project</th><th>Priority</th><th>Stage</th><th>Lead</th><th>Support</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="manage-tbody"><tr><td colspan="8" class="loading">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <p style="font-size:11px;color:var(--text-muted);margin-top:10px;">All changes sync live to every user instantly.</p>
+  </div>
+</div>
+
+<!-- ══ PROJECT MODAL ══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="proj-modal">
+  <div class="modal">
+    <h2 id="modal-title">Add Project</h2>
+    <div class="modal-grid">
+      <div class="full field"><label>Project Name</label><input type="text" id="m-name" placeholder="Client — Location"></div>
+      <div class="field"><label>Priority</label>
+        <select id="m-pri">
+          <option value="1">P1 — Critical</option>
+          <option value="2">P2 — High</option>
+          <option value="3" selected>P3 — Standard</option>
+        </select>
+      </div>
+      <div class="field"><label>Status</label>
+        <select id="m-status">
+          <option>Active</option><option>Won</option><option>Lost</option>
+          <option>Submitted</option><option>Postponed</option><option>Cancelled</option><option>Rejected</option>
+        </select>
+      </div>
+      <div class="full field"><label>Stage</label>
+        <select id="m-stage">
+          <optgroup label="── Active Stages ──">
+            <option>Finalizing</option><option>RFQ Submission Rd 1</option><option>RFQ Submission Rd 2</option>
+            <option>RFQ Solution Development</option><option>Contract Negotiations</option>
+            <option>Awaiting Award</option><option>Awaiting RFP</option><option>Vendor Review</option>
+            <option>Real Estate Review</option><option>Site Tour</option><option>Q&A</option><option>Handover to PM</option>
+          </optgroup>
+          <optgroup label="── Takeover Stages ──">
+            <option>Takeover Q&A</option><option>Takeover RFQ</option><option>Takeover LOI</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="field"><label>Lead</label><input type="text" id="m-lead" placeholder="Name"></div>
+      <div class="field"><label>Support</label><input type="text" id="m-support" placeholder="Name(s)"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-delete" id="btn-delete" onclick="deleteProject()" style="display:none;">Delete</button>
+      <button class="btn-save" onclick="saveProject()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ USER MANAGER MODAL ════════════════════════════════════════ -->
+<div class="modal-overlay" id="um-modal">
+  <div class="modal" style="width:580px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+      <h2 style="margin:0;">👥 Manage Users</h2>
+      <button onclick="closeUserManager()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:22px;line-height:1;">×</button>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:18px;">
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:10px;">Invite New User</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:end;">
+        <div><label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Name</label>
+          <input type="text" id="um-name" placeholder="Full name" style="width:100%;background:var(--navy);border:1px solid var(--border);color:var(--text-primary);font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 10px;border-radius:7px;outline:none;"></div>
+        <div><label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Email</label>
+          <input type="email" id="um-email" placeholder="user@company.com" style="width:100%;background:var(--navy);border:1px solid var(--border);color:var(--text-primary);font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 10px;border-radius:7px;outline:none;"></div>
+        <div><label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Role</label>
+          <select id="um-role" style="background:var(--navy);border:1px solid var(--border);color:var(--text-primary);font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 10px;border-radius:7px;outline:none;">
+            <option value="member">Member</option><option value="owner">Co-Owner</option>
+          </select>
+        </div>
+        <button onclick="addUser()" style="padding:7px 14px;background:rgba(16,185,129,0.15);color:#6EE7B7;border:1px solid rgba(16,185,129,0.3);border-radius:7px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;margin-top:18px;">+ Add</button>
+      </div>
+      <div id="um-msg" style="font-size:12px;margin-top:8px;display:none;"></div>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Current Users</div>
+    <div id="um-list"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── Supabase init ────────────────────────────────────────────────
+const SUPA_URL = 'https://vgpbbndllbrnikvznfgs.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZncGJibmRsbGJybmlrdnpuZmdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyOTExODUsImV4cCI6MjA5NDg2NzE4NX0.ACiYAf-Lxgs45ptLewIvWGyZrE4--HScV4tNy05xFMU';
+const { createClient } = supabase;
+const db = createClient(SUPA_URL, SUPA_KEY);
+
+let PROJECTS = [];
+let currentUser = null;
+let editingId = null;
+
+// ── Helpers ──────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+function showToast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+function isClosedStatus(s) {
+  return ['Won','Lost','Submitted','Postponed','Cancelled','Rejected'].includes(s);
+}
+function sortProjects(list) {
+  return [...list].sort((a,b) => {
+    const ac = isClosedStatus(a.status||'Active'), bc = isClosedStatus(b.status||'Active');
+    if (ac !== bc) return ac ? 1 : -1;
+    return a.priority - b.priority;
+  });
+}
+function stageClass(s) {
+  if (!s) return 's-other';
+  if (s.includes('RFQ')) return 's-rfq';
+  if (s.includes('Finaliz')) return 's-final';
+  if (s.includes('Negotiation')) return 's-neg';
+  if (s.includes('Award')) return 's-award';
+  if (s.includes('Review')||s.includes('Vendor')) return 's-review';
+  if (s === 'Takeover Q&A') return 's-takeover-qa';
+  if (s === 'Takeover RFQ') return 's-takeover-rfq';
+  if (s === 'Takeover LOI') return 's-takeover-loi';
+  return 's-other';
+}
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function priLabel(p) { return p==1?'P1':p==2?'P2':'P3'; }
+function priClass(p) { return p==1?'p1':p==2?'p2':'p3'; }
+
+// ── Auth ─────────────────────────────────────────────────────────
+async function initAuth() {
+  // Check if any users exist
+  const { data: users } = await db.from('users').select('id').limit(1);
+  if (!users || users.length === 0) {
+    $('step-setup').classList.add('active');
+  } else {
+    $('step-login').classList.add('active');
+    setTimeout(() => $('login-email').focus(), 100);
+  }
+}
+
+async function doSetup() {
+  const name  = $('setup-name').value.trim();
+  const email = $('setup-email').value.trim().toLowerCase();
+  const err   = $('setup-err');
+  err.style.display = 'none';
+  if (!name)  { showAlert(err, 'Please enter your name.'); return; }
+  if (!email.includes('@')) { showAlert(err, 'Please enter a valid email.'); return; }
+  const { error } = await db.from('users').insert({ name, email, role: 'owner' });
+  if (error) { showAlert(err, 'Setup failed: ' + error.message); return; }
+  currentUser = { name, email, role: 'owner' };
+  sessionStorage.setItem('rd_user', JSON.stringify(currentUser));
+  showDashboard();
+}
+
+async function doLogin() {
+  const email   = $('login-email').value.trim().toLowerCase();
+  const err     = $('login-err');
+  const spinner = $('login-spinner');
+  err.style.display = 'none';
+  if (!email.includes('@')) { showAlert(err, 'Please enter a valid email address.'); return; }
+  spinner.style.display = 'block';
+  const { data, error } = await db.from('users').select('*').eq('email', email).single();
+  spinner.style.display = 'none';
+  if (error || !data) { showAlert(err, 'Access denied. This email is not on the approved list.'); return; }
+  currentUser = data;
+  sessionStorage.setItem('rd_user', JSON.stringify(currentUser));
+  showDashboard();
+}
+
+function doLogout() {
+  sessionStorage.removeItem('rd_user');
+  location.reload();
+}
+
+function showAlert(el, msg) { el.textContent = msg; el.style.display = 'block'; }
+
+// ── Dashboard init ───────────────────────────────────────────────
+async function showDashboard() {
+  $('login-screen').style.display = 'none';
+  $('app').style.display = 'block';
+
+  const isOwner = currentUser.role === 'owner';
+
+  // Auth bar
+  $('auth-greeting').textContent = `Signed in as ${currentUser.name} · ${currentUser.email}`;
+  const rb = $('role-badge');
+  if (isOwner) {
+    rb.textContent = '👑 Co-Owner'; rb.style.color = '#FCD34D';
+    rb.style.borderColor = 'rgba(245,158,11,0.3)';
+    rb.style.background = 'rgba(245,158,11,0.07)';
+    $('btn-manage-users').style.display = '';
+    document.querySelectorAll('.owner-only').forEach(el => el.style.display = '');
+  } else {
+    rb.textContent = '👁 Member (View Only)'; rb.style.color = '#93C5FD';
+    rb.style.borderColor = 'rgba(59,130,246,0.25)';
+    rb.style.background = 'rgba(59,130,246,0.07)';
+  }
+
+  // Date
+  $('current-date').textContent = new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+
+  // Load + subscribe
+  await loadProjects();
+  subscribeRealtime();
+}
+
+// ── Projects CRUD ────────────────────────────────────────────────
+async function loadProjects() {
+  const { data, error } = await db.from('projects').select('*').order('priority').order('name');
+  if (error) { showToast('Error loading projects'); return; }
+  PROJECTS = data || [];
+  refreshAll();
+}
+
+function subscribeRealtime() {
+  db.channel('projects-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, payload => {
+      if (payload.eventType === 'INSERT') {
+        PROJECTS.push(payload.new);
+      } else if (payload.eventType === 'UPDATE') {
+        const i = PROJECTS.findIndex(p => p.id === payload.new.id);
+        if (i >= 0) PROJECTS[i] = payload.new; else PROJECTS.push(payload.new);
+      } else if (payload.eventType === 'DELETE') {
+        PROJECTS = PROJECTS.filter(p => p.id !== payload.old.id);
+      }
+      refreshAll();
+      showToast('🔄 Dashboard updated');
+    })
+    .subscribe();
+}
+
+function refreshAll() {
+  applyFilters();
+  renderWorkload();
+  renderMatrix();
+  renderManage();
+  updateStats();
+}
+
+function updateStats() {
+  const active = PROJECTS.filter(p => !isClosedStatus(p.status||'Active'));
+  const p1 = active.filter(p=>p.priority==1).length;
+  const p2 = active.filter(p=>p.priority==2).length;
+  const p3 = active.filter(p=>p.priority==3).length;
+  $('header-proj-count').textContent = `${active.length} Active Projects`;
+  $('stats-grid').innerHTML = `
+    <div class="stat-card"><div class="stat-value" style="color:#F0F4FF;">${active.length}</div><div class="stat-label">Total Active</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:#FCA5A5;">${p1}</div><div class="stat-label">P1 Critical</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:#FCD34D;">${p2}</div><div class="stat-label">P2 High</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:#93C5FD;">${p3}</div><div class="stat-label">P3 Standard</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:#6EE7B7;">${PROJECTS.filter(p=>p.status==='Won').length}</div><div class="stat-label">Won</div></div>
+  `;
+}
+
+// ── Filters / Render projects ────────────────────────────────────
+function applyFilters() {
+  const search = ($('f-search').value||'').toLowerCase();
+  const pf     = $('f-priority').value;
+  const sf     = $('f-stage').value;
+  const stf    = $('f-status').value;
+  let list = PROJECTS;
+  if (search) list = list.filter(p => p.name.toLowerCase().includes(search));
+  if (pf)     list = list.filter(p => String(p.priority) === pf);
+  if (sf)     list = list.filter(p => (p.stage||'').includes(sf));
+  if (stf === 'active') list = list.filter(p => !isClosedStatus(p.status||'Active'));
+  else if (stf) list = list.filter(p => p.status === stf);
+  renderProjects(sortProjects(list));
+}
+
+function renderProjects(list) {
+  const tbody = $('proj-tbody');
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="7" class="loading">No projects match your filters.</td></tr>'; return; }
+  tbody.innerHTML = list.map((p,i) => `
+    <tr>
+      <td style="color:var(--text-muted);font-size:11px;">${i+1}</td>
+      <td style="font-weight:500;max-width:260px;">${esc(p.name)}</td>
+      <td><span class="priority-badge ${priClass(p.priority)}">${priLabel(p.priority)}</span></td>
+      <td><span class="stage-badge ${stageClass(p.stage)}">${esc(p.stage||'—')}</span></td>
+      <td>${esc(p.lead||'—')}</td>
+      <td style="color:var(--text-muted);">${esc(p.support||'—')}</td>
+      <td><span class="status-dot ${isClosedStatus(p.status||'Active')?'status-closed':'status-active'}"></span>${esc(p.status||'Active')}</td>
+    </tr>`).join('');
+}
+
+// ── Manage tab ───────────────────────────────────────────────────
+function renderManage() {
+  if (currentUser?.role !== 'owner') return;
+  const search = ($('m-search')?.value||'').toLowerCase();
+  const pf     = $('m-priority')?.value||'';
+  let list = sortProjects(PROJECTS);
+  if (search) list = list.filter(p => p.name.toLowerCase().includes(search));
+  if (pf)     list = list.filter(p => String(p.priority) === pf);
+  const tbody = $('manage-tbody');
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="8" class="loading">No projects found.</td></tr>'; return; }
+  tbody.innerHTML = list.map((p,i) => `
+    <tr>
+      <td style="color:var(--text-muted);font-size:11px;">${i+1}</td>
+      <td style="font-weight:500;max-width:220px;">${esc(p.name)}</td>
+      <td><span class="priority-badge ${priClass(p.priority)}">${priLabel(p.priority)}</span></td>
+      <td><span class="stage-badge ${stageClass(p.stage)}">${esc(p.stage||'—')}</span></td>
+      <td>${esc(p.lead||'—')}</td>
+      <td style="color:var(--text-muted);">${esc(p.support||'—')}</td>
+      <td><span class="status-dot ${isClosedStatus(p.status||'Active')?'status-closed':'status-active'}"></span>${esc(p.status||'Active')}</td>
+      <td><button class="btn-sm" onclick="openEditModal('${p.id}')">Edit</button></td>
+    </tr>`).join('');
+}
+
+// ── Workload ─────────────────────────────────────────────────────
+function renderWorkload() {
+  const active = PROJECTS.filter(p => !isClosedStatus(p.status||'Active'));
+  const members = {};
+  active.forEach(p => {
+    if (p.lead) { members[p.lead] = members[p.lead]||{lead:[],support:[]}; members[p.lead].lead.push(p); }
+    if (p.support) {
+      p.support.split('/').map(s=>s.trim()).filter(Boolean).forEach(s => {
+        members[s] = members[s]||{lead:[],support:[]}; members[s].support.push(p);
+      });
+    }
+  });
+  const max = Math.max(...Object.values(members).map(m => m.lead.length + m.support.length), 1);
+  $('workload-content').innerHTML = Object.entries(members).sort((a,b)=>(b[1].lead.length+b[1].support.length)-(a[1].lead.length+a[1].support.length)).map(([name,data]) => {
+    const total = data.lead.length + data.support.length;
+    const pct = Math.round(total/max*100);
+    return `<div class="workload-bar-wrap">
+      <div class="workload-label"><span style="font-weight:500;">${esc(name)}</span><span>${data.lead.length} lead · ${data.support.length} support · ${total} total</span></div>
+      <div class="workload-bar"><div class="workload-fill" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join('') || '<div class="loading">No data</div>';
+}
+
+// ── Matrix ───────────────────────────────────────────────────────
+function renderMatrix() {
+  const active = PROJECTS.filter(p => !isClosedStatus(p.status||'Active'));
+  const members = {};
+  active.forEach(p => {
+    if (p.lead) { members[p.lead] = members[p.lead]||[]; members[p.lead].push({...p,role:'Lead'}); }
+    if (p.support) {
+      p.support.split('/').map(s=>s.trim()).filter(Boolean).forEach(s => {
+        members[s] = members[s]||[]; members[s].push({...p,role:'Support'});
+      });
+    }
+  });
+  $('matrix-content').innerHTML = `<div class="matrix-grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr));">` +
+    Object.entries(members).sort((a,b)=>b[1].length-a[1].length).map(([name,projs]) => `
+      <div class="matrix-member">
+        <div class="matrix-member-name">👤 ${esc(name)} <span style="font-size:11px;color:var(--text-muted);font-weight:400;">${projs.length} projects</span></div>
+        <div class="matrix-projects">${projs.map(p=>`<span class="matrix-tag" title="${esc(p.stage)}">${esc(p.name.length>30?p.name.slice(0,28)+'…':p.name)}</span>`).join('')}</div>
+      </div>`).join('') + `</div>` || '<div class="loading">No data</div>';
+}
+
+// ── Modal ────────────────────────────────────────────────────────
+function openAddModal() {
+  editingId = null;
+  $('modal-title').textContent = 'Add Project';
+  $('m-name').value=''; $('m-pri').value='3'; $('m-stage').value='Q&A';
+  $('m-lead').value=''; $('m-support').value=''; $('m-status').value='Active';
+  $('btn-delete').style.display='none';
+  $('proj-modal').classList.add('open');
+}
+function openEditModal(id) {
+  const p = PROJECTS.find(x=>x.id===id); if (!p) return;
+  editingId = id;
+  $('modal-title').textContent = 'Edit Project';
+  $('m-name').value = p.name||'';
+  $('m-pri').value  = p.priority||3;
+  $('m-stage').value= p.stage||'Q&A';
+  $('m-lead').value = p.lead||'';
+  $('m-support').value = p.support||'';
+  $('m-status').value  = p.status||'Active';
+  $('btn-delete').style.display='';
+  $('proj-modal').classList.add('open');
+}
+function closeModal() { $('proj-modal').classList.remove('open'); }
+
+async function saveProject() {
+  const payload = {
+    name:     $('m-name').value.trim(),
+    priority: parseInt($('m-pri').value),
+    stage:    $('m-stage').value,
+    lead:     $('m-lead').value.trim()||null,
+    support:  $('m-support').value.trim()||null,
+    status:   $('m-status').value,
+  };
+  if (!payload.name) { showToast('Project name is required'); return; }
+  let error;
+  if (editingId) {
+    ({ error } = await db.from('projects').update(payload).eq('id', editingId));
+  } else {
+    ({ error } = await db.from('projects').insert(payload));
+  }
+  if (error) { showToast('Error saving: ' + error.message); return; }
+  showToast(editingId ? '✅ Project updated' : '✅ Project added');
+  closeModal();
+}
+
+async function deleteProject() {
+  if (!editingId) return;
+  const p = PROJECTS.find(x=>x.id===editingId);
+  if (!confirm(`Delete "${p?.name}"? This cannot be undone.`)) return;
+  const { error } = await db.from('projects').delete().eq('id', editingId);
+  if (error) { showToast('Error deleting: ' + error.message); return; }
+  showToast('Project deleted');
+  closeModal();
+}
+
+// ── User Manager ─────────────────────────────────────────────────
+async function openUserManager() {
+  $('um-modal').classList.add('open');
+  await refreshUserList();
+}
+function closeUserManager() { $('um-modal').classList.remove('open'); }
+$('um-modal').addEventListener('click', e => { if (e.target===$('um-modal')) closeUserManager(); });
+$('proj-modal').addEventListener('click', e => { if (e.target===$('proj-modal')) closeModal(); });
+
+async function refreshUserList() {
+  const { data: users } = await db.from('users').select('*').order('created_at');
+  const wrap = $('um-list');
+  if (!users?.length) { wrap.innerHTML='<div style="color:var(--text-muted);font-size:13px;padding:8px 0;">No users yet.</div>'; return; }
+  wrap.innerHTML = users.map(u => `
+    <div class="um-row">
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:500;">${esc(u.name)}</div>
+        <div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;">${esc(u.email)}</div>
+      </div>
+      <select onchange="changeRole('${esc(u.id)}',this.value)" style="background:var(--navy);border:1px solid var(--border);color:var(--text-primary);font-family:'DM Sans',sans-serif;font-size:12px;padding:5px 8px;border-radius:6px;outline:none;">
+        <option value="member" ${u.role==='member'?'selected':''}>Member</option>
+        <option value="owner"  ${u.role==='owner' ?'selected':''}>Co-Owner</option>
+      </select>
+      <button onclick="removeUser('${esc(u.id)}','${esc(u.email)}')" class="btn-sm danger">Remove</button>
+    </div>`).join('');
+}
+
+async function addUser() {
+  const name  = $('um-name').value.trim();
+  const email = $('um-email').value.trim().toLowerCase();
+  const role  = $('um-role').value;
+  const msg   = $('um-msg');
+  msg.style.display='none';
+  if (!name)  { showUmMsg('error','Name is required.'); return; }
+  if (!email.includes('@')) { showUmMsg('error','Enter a valid email.'); return; }
+  const { error } = await db.from('users').insert({ name, email, role });
+  if (error) { showUmMsg('error', error.code==='23505'?'This email is already added.':'Failed to add user.'); return; }
+  $('um-name').value=''; $('um-email').value='';
+  showUmMsg('ok', `✅ ${name} added as ${role==='owner'?'Co-Owner':'Member'}.`);
+  await refreshUserList();
+}
+
+async function changeRole(id, role) {
+  const { error } = await db.from('users').update({ role }).eq('id', id);
+  if (error) { showUmMsg('error','Failed to update role.'); await refreshUserList(); return; }
+  showUmMsg('ok','Role updated.');
+}
+
+async function removeUser(id, email) {
+  if (!confirm(`Remove ${email}? They will lose access immediately.`)) return;
+  const { error } = await db.from('users').delete().eq('id', id);
+  if (error) { showUmMsg('error','Failed to remove user.'); return; }
+  showUmMsg('ok','User removed.');
+  await refreshUserList();
+}
+
+function showUmMsg(type, text) {
+  const el = $('um-msg');
+  el.style.display='block'; el.style.color=type==='ok'?'#6EE7B7':'#FCA5A5';
+  el.textContent=text;
+  setTimeout(()=>el.style.display='none', 3000);
+}
+
+// ── Tab switching ────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  $('tab-'+name).classList.add('active');
+}
+
+// ── Boot ─────────────────────────────────────────────────────────
+(async () => {
+  // Restore session
+  try { currentUser = JSON.parse(sessionStorage.getItem('rd_user')); } catch(e) {}
+  if (currentUser?.email) {
+    // Re-validate session against DB (role may have changed)
+    const { data } = await db.from('users').select('*').eq('email', currentUser.email).single();
+    if (data) { currentUser = data; sessionStorage.setItem('rd_user', JSON.stringify(data)); showDashboard(); }
+    else { sessionStorage.removeItem('rd_user'); initAuth(); }
+  } else {
+    initAuth();
+  }
+})();
+</script>
+</body>
+</html>
